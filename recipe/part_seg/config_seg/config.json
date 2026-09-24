@@ -1,0 +1,105 @@
+{
+  "architectures": [
+    "Qwen3VLForConditionalGeneration"
+  ],
+  "image_token_id": 151655,
+  "model_type": "qwen3_vl",
+  "text_config": {
+    "attention_bias": false,
+    "attention_dropout": 0.0,
+    "bos_token_id": 151643,
+    "dtype": "bfloat16",
+    "eos_token_id": 151645,
+    "head_dim": 128,
+    "hidden_act": "silu",
+    "hidden_size": 2560,
+    "initializer_range": 0.02,
+    "intermediate_size": 9728,
+    "max_position_embeddings": 262144,
+    "model_type": "qwen3_vl_text",
+    "num_attention_heads": 32,
+    "num_hidden_layers": 36,
+    "num_key_value_heads": 8,
+    "rms_norm_eps": 1e-06,
+    "rope_scaling": {
+      "mrope_interleaved": true,
+      "mrope_section": [
+        24,
+        20,
+        20
+      ],
+      "rope_type": "default"
+    },
+    "rope_theta": 5000000,
+    "tie_word_embeddings": true,
+    "use_cache": true,
+    "vocab_size": 151936
+  },
+  "tie_word_embeddings": true,
+  "transformers_version": "4.57.0.dev0",
+  "video_token_id": 151656,
+  "vision_config": {
+    "deepstack_visual_indexes": [
+      5,
+      11,
+      17
+    ],
+    "depth": 24,
+    "hidden_act": "gelu_pytorch_tanh",
+    "hidden_size": 1024,
+    "in_channels": 3,
+    "initializer_range": 0.02,
+    "intermediate_size": 4096,
+    "model_type": "qwen3_vl",
+    "num_heads": 16,
+    "num_position_embeddings": 2304,
+    "out_hidden_size": 2560,
+    "patch_size": 16,
+    "spatial_merge_size": 2,
+    "temporal_patch_size": 2
+  },
+  "point_cloud_config": {
+    "model_type": "partllm_point_cloud",
+    "pc_size": 81920
+  },
+  "vision_end_token_id": 151653,
+  "vision_start_token_id": 151652,
+  "point_cloud_token_id": 151671,
+  "point_cloud_end_token_id": 151670,
+  "point_cloud_start_token_id": 151669,
+  "seg_loss_weight": 1.0,
+  "joint_focal_gamma": 2.0,
+  "joint_lambda_dice": 2.0,
+  "joint_exclude_bg": true,
+  "seg_token_id": 151672,
+  "bg_token_id": 151673,
+  "use_mask_decoder": true,
+  "point_cloud_encoder_type": "utonia",
+  "utonia_ckpt_path": null,
+  "utonia_scale": 5.0,
+  "utonia_num_tokens": 4096,
+  "utonia_enc_channels": [
+    54,
+    108,
+    216,
+    432,
+    576
+  ],
+  "mask_decoder_config": {
+    "model_type": "qwen3_vl_mask_decoder",
+    "transformer_depth": 4,
+    "transformer_embedding_dim": 512,
+    "transformer_num_heads": 8,
+    "transformer_mlp_dim": 2048,
+    "transformer_attention_downsample_rate": 1,
+    "mask_decoder_transformer_dim": 512,
+    "mask_decoder_embedding_input_dim": 2560,
+    "utonia_enc_channels": [
+      54,
+      108,
+      216,
+      432,
+      576
+    ]
+  }
+}
