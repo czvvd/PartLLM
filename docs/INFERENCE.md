@@ -50,8 +50,8 @@ bash scripts/infer.sh full_shape "$MODEL_PATH" /path/to/meshes outputs/full_shap
 
 | Option | Description |
 |---|---|
-| `--sem_mode all|semantic|nosem` | Run semantic prompts, non-semantic prompts, or both. Default: `semantic`. |
-| `--prompt_set all|coarse|general|fine` | Run all predefined granularities or one selected granularity. Default: `all`. |
+| `--sem_mode all\|semantic\|nosem` | Run semantic prompts, non-semantic prompts, or both. Default: `semantic`. |
+| `--prompt_set all\|coarse\|general\|fine` | Run all predefined granularities or one selected granularity. Default: `all`. |
 | `--num_parts N` | Run a numeric prompt requesting approximately `N` parts instead of `--prompt_set`. |
 | `--cache_dir PATH` | Reuse a cache produced by `preprocess_glb_cache.py`. |
 
@@ -139,7 +139,7 @@ Every interactive or refine round writes a reusable `binary_mask.npy` in its `cl
 | `--initial_mask PATH` | Binary per-face `.npy` mask used by refine mode. |
 | `--point X Y Z` | Positive point. May be repeated. |
 | `--negative_point X Y Z` | Negative point. May be repeated in refine mode. |
-| `--semantic true|false` | Enable or disable part-name prediction. Default: `true`. |
+| `--semantic true\|false` | Enable or disable part-name prediction. Default: `true`. |
 
 ### Point coordinates and prompts
 
@@ -162,19 +162,17 @@ The second form is selected by `--semantic false`. In refine mode, the initial m
 | `--seed N` | Control generation and point-cloud sampling. Default: `42`. |
 | `--sample_seed N` | Control sample selection independently of generation. Default: `42`. |
 | `--max_new_tokens N` | Set the generation limit. Default: `10240`. |
-| `--do_sample true|false` | Enable sampling instead of greedy decoding. Default: `false`. |
+| `--do_sample true\|false` | Enable sampling instead of greedy decoding. Default: `false`. |
 | `--temperature`, `--top_p`, `--top_k` | Configure sampling when `--do_sample` is enabled. |
-| `--resume true|false` | Skip completed outputs or force a rerun. Default: `true`. |
-| `--save_mesh true|false` | Enable or disable colored mesh export. Default: `true`. |
-| `--save_per_part true|false` | Save each predicted part as a separate PLY file. Default: `false`. |
+| `--resume true\|false` | Skip completed outputs or force a rerun. Default: `true`. |
+| `--save_mesh true\|false` | Enable or disable colored mesh export. Default: `true`. |
+| `--save_per_part true\|false` | Save each predicted part as a separate PLY file. Default: `false`. |
 
 ## Post-processing Options
 
-Structured label completion and boundary graph cut are enabled by default.
-
 | Option | Description |
 |---|---|
-| `--postprocess true|false` | Enable structured label completion and region cleanup. Default: `true`. |
-| `--pp_drop_small true|false` | Remove and refill small isolated regions. Default: `true`. |
+| `--postprocess true\|false` | Enable structured label completion and region cleanup. Default: `true`. |
+| `--pp_drop_small true\|false` | Remove and refill small isolated regions. Default: `true`. |
 | `--pp_rel_area_threshold R` | Set the small-region area threshold relative to its shell. Default: `0.001`. |
-| `--graph_cut true|false` | Refine part boundaries with graph cut. Default: `true`. |
+| `--graph_cut true\|false` | Refine part boundaries with graph cut. Default: `true`. |
