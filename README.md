@@ -27,16 +27,14 @@ Le Wan,
 ## Installation
 
 ```bash
-conda create -n partllm python=3.11 -y
-conda activate partllm
-bash scripts/install.sh
+git clone --branch jittor --single-branch https://github.com/czvvd/PartLLM.git
+cd PartLLM
+conda create -n partllm-jittor python=3.11 -y
+conda activate partllm-jittor
+pip install -r requirements.txt
 ```
 
-Optionally install the vLLM backend; all inference modes will use it automatically:
-
-```bash
-bash scripts/install_vllm.sh
-```
+Use Linux with an NVIDIA GPU supporting BF16, a C++ compiler, and a compatible CUDA toolkit. See the [Jittor installation guide](https://cg.cs.tsinghua.edu.cn/jittor/download/) for compiler and CUDA setup.
 
 Download the released checkpoint from Hugging Face:
 
@@ -63,14 +61,6 @@ bash scripts/infer.sh interactive "$MODEL_PATH" /path/to/mesh.glb outputs/intera
 ```
 
 For detailed usage and configuration options, please refer to the [inference documentation](docs/INFERENCE.md).
-
-## Training
-
-Follow the [training documentation](docs/TRAINING.md) to prepare the training data.
-
-```bash
-bash scripts/train.sh
-```
 
 ## Acknowledgement
 
