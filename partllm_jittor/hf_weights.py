@@ -50,6 +50,12 @@ class LazySafeTensorStore:
             del self._cache[name]
         jt.gc()
 
+    def detach_prefix(self, prefix: str) -> None:
+        """Keep synced weights resident without retaining their upload graphs."""
+        for name, value in self._cache.items():
+            if name.startswith(prefix):
+                self._cache[name] = value.detach()
+
     def release_all(self) -> None:
         """Release all materialized Jittor tensors while retaining shard metadata."""
         self._cache.clear()
