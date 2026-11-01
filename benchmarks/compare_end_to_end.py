@@ -22,10 +22,12 @@ import numpy as np
 
 
 WRAPPER = """
+import json
 from partllm_jittor.pipeline import PartSegPrompt
 _original = PartSegPrompt.generate
 def _timed_generate(self, *args, **kwargs):
     result = _original(self, *args, **kwargs)
+    print('[Bench] generated_ids=' + json.dumps(result.generated_ids), flush=True)
     print('[Bench] prompt_generate_done', flush=True)
     return result
 PartSegPrompt.generate = _timed_generate
@@ -61,13 +63,14 @@ def measure(root: Path, cache_name: str, model_dir: Path, points_npz: Path,
     env["PYTHONPATH"] = str(root)
     events: dict[str, float] = {}
     generated_tokens = None
+    generated_ids = None
     log_path = output / "run.log"
     start = time.perf_counter()
     process = subprocess.Popen(command, cwd=root, env=env, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True, bufsize=1)
 
     def read_log() -> None:
-        nonlocal generated_tokens
+        nonlocal generated_tokens, generated_ids
         with log_path.open("w", encoding="utf-8") as log:
             for line in process.stdout:
                 elapsed = time.perf_counter() - start
@@ -86,6 +89,8 @@ def measure(root: Path, cache_name: str, model_dir: Path, points_npz: Path,
                         generated_tokens = int(match.group(1))
                 elif "[Bench] prompt_generate_done" in line:
                     events.setdefault("prompt_end", elapsed)
+                elif "[Bench] generated_ids=" in line:
+                    generated_ids = json.loads(line.split("[Bench] generated_ids=", 1)[1])
                 elif "[OK]" in line:
                     events.setdefault("output_done", elapsed)
 
@@ -125,6 +130,7 @@ def measure(root: Path, cache_name: str, model_dir: Path, points_npz: Path,
     return {
         "checkout": str(root), "cache_name": cache_name, "command": command,
         "wall_seconds": round(elapsed, 4), "generated_tokens": generated_tokens,
+        "generated_ids": generated_ids,
         "tokens_per_second_end_to_end": round(generated_tokens / elapsed, 4),
         "objects_per_hour": round(3600 / elapsed, 3),
         "gpu_baseline_mib": baseline, "gpu_baseline_util_pct": baseline_util,
