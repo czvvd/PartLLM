@@ -1358,6 +1358,31 @@ def build_open_prompt_specs(args, open_rows, fallback_row):
 
 
 
+def _load_utonia_finetuned_state(model_path):
+    from safetensors import safe_open
+
+    index_path = os.path.join(model_path, "model.safetensors.index.json")
+    single_path = os.path.join(model_path, "model.safetensors")
+    if os.path.exists(index_path):
+        with open(index_path) as file:
+            weight_map = json.load(file)["weight_map"]
+        shard_paths = {os.path.join(model_path, shard) for key, shard in weight_map.items()
+                       if "utonia_model" in key}
+    elif os.path.exists(single_path):
+        shard_paths = [single_path]
+    else:
+        print("[Warning] No safetensors checkpoint found, using pretrained Utonia weights")
+        return {}
+
+    utonia_state = {}
+    for shard_path in shard_paths:
+        with safe_open(shard_path, framework="pt", device="cpu") as shard:
+            for key in shard.keys():
+                if "utonia_model" in key:
+                    utonia_state[key.replace("model.utonia_model.", "")] = shard.get_tensor(key)
+    return utonia_state
+
+
 def load_model(args):
     """Load the model, processor, and tokenizer."""
     print("Loading model...")
@@ -1392,29 +1417,7 @@ def load_model(args):
     utonia_ckpt = getattr(hf_config, "utonia_ckpt_path", None)
     model.model.load_utonia_weights(ckpt_path=utonia_ckpt)
 
-    from safetensors.torch import load_file
-    import json as _json
-    utonia_state = {}
-    index_path = os.path.join(args.model_path, "model.safetensors.index.json")
-    single_path = os.path.join(args.model_path, "model.safetensors")
-    if os.path.exists(index_path):
-        with open(index_path) as f:
-            index = _json.load(f)
-        utonia_shards = {
-            shard for key, shard in index["weight_map"].items() if "utonia_model" in key
-        }
-        for shard in utonia_shards:
-            shard_state = load_file(os.path.join(args.model_path, shard))
-            for key, value in shard_state.items():
-                if "utonia_model" in key:
-                    utonia_state[key.replace("model.utonia_model.", "")] = value
-    elif os.path.exists(single_path):
-        shard_state = load_file(single_path)
-        for key, value in shard_state.items():
-            if "utonia_model" in key:
-                utonia_state[key.replace("model.utonia_model.", "")] = value
-    else:
-        print("[Warning] No safetensors checkpoint found, using pretrained Utonia weights")
+    utonia_state = _load_utonia_finetuned_state(args.model_path)
     if utonia_state:
         missing, unexpected = model.model.utonia_model.load_state_dict(utonia_state, strict=False)
         print(f"[Info] Utonia fine-tuned weights loaded (missing={len(missing)}, unexpected={len(unexpected)})")
