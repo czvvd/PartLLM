@@ -1394,7 +1394,12 @@ def load_model(args):
     hf_config = AutoConfig.from_pretrained(args.config_path, trust_remote_code=True, local_files_only=True)
     auto_class = get_hf_auto_model_class(hf_config=hf_config)
 
-    model = auto_class.from_pretrained(
+    load_pretrained = auto_class.from_pretrained
+    if os.environ.get("PARTLLM_JTORCH_DEFER_LINEAR_INIT") == "1" and hasattr(torch, "_torch_compat_install_context"):
+        from functools import partial
+        from jittor.compat.torch.checkpoint_linear import load_with_deferred_linear_initialization
+        load_pretrained = partial(load_with_deferred_linear_initialization, load_pretrained)
+    model = load_pretrained(
         pretrained_model_name_or_path=args.model_path,
         dtype=torch.bfloat16,
         config=hf_config,
