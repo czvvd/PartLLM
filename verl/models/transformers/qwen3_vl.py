@@ -15,6 +15,8 @@
 import functools
 import logging
 import os
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Optional
 
@@ -39,10 +41,65 @@ from transformers.models.qwen3_vl.mask_decoder import _utonia_unpooling
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 
+_deterministic_fps = ContextVar("partllm_deterministic_fps", default=None)
+
+
+@contextmanager
+def deterministic_fps_request(geometry):
+    """Reuse deterministic FPS indices only for this geometry and request."""
+    token = _deterministic_fps.set((geometry, {}))
+    try:
+        yield
+    finally:
+        _deterministic_fps.reset(token)
+
+
+def _geometry_versions(geometry):
+    versions = []
+    for name in ("coord", "inverse"):
+        tensor = geometry[name]
+        native_version = getattr(tensor, "_saved_storage_version", None)
+        if callable(native_version):
+            versions.append(tuple(native_version()))
+            continue
+        try:
+            version = getattr(tensor, "_version", None)
+        except RuntimeError:
+            return None
+        if version is None:
+            return None
+        versions.append((id(tensor), version))
+    return tuple(versions)
+
+
+def _sample_deterministic(coords, n_samples, geometry, cache):
+    versions = _geometry_versions(geometry)
+    coord_source, inverse_source = geometry["coord"], geometry["inverse"]
+    if versions is not None:
+        key = (
+            versions, tuple(coords.shape), str(coords.dtype),
+            coords.device.type, coords.device.index, n_samples,
+        )
+        cached = cache.get(key)
+        if cached is not None and cached[0] is coord_source and cached[1] is inverse_source:
+            return cached[2]
+    if n_samples >= coords.shape[0]:
+        indices = torch.arange(coords.shape[0], device=coords.device)
+    else:
+        indices = torch_cluster_fps(
+            coords.float(), ratio=n_samples / coords.shape[0], random_start=False
+        )[:n_samples]
+    if versions is not None:
+        cache[key] = coord_source, inverse_source, indices
+    return indices
+
+
 def sample_point_indices(
     coords: torch.Tensor,
     n_samples: int,
     indices_cache: Optional[dict] = None,
+    *,
+    geometry: Optional[dict] = None,
 ) -> torch.Tensor:
     """Sample point-token indices, optionally reusing an inference-only cache.
 
@@ -51,6 +108,10 @@ def sample_point_indices(
     cache per shape so generate(), the final mask forward, and all correction
     rounds use the exact same point-token subset.
     """
+    request = _deterministic_fps.get()
+    if request is not None and geometry is request[0] and indices_cache is None:
+        return _sample_deterministic(coords, n_samples, geometry, request[1])
+
     cache_key = (
         int(coords.shape[0]),
         int(n_samples),
@@ -369,6 +430,7 @@ def _get_input_embeds(
             coords_original,
             n_fps,
             getattr(model, "_partllm_fps_indices_cache", None),
+            geometry=utonia_point_dict,
         )
         centers = coords_original[fps_indices]
         embeddings_fps = feat_at_original[fps_indices]

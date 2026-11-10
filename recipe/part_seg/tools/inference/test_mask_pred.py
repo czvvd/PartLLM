@@ -1383,8 +1383,7 @@ def _load_utonia_finetuned_state(model_path):
     return utonia_state
 
 
-def load_model(args):
-    """Load the model, processor, and tokenizer."""
+def _load_model_on_host(args, fast_checkpoint):
     print("Loading model...")
 
     
@@ -1420,14 +1419,29 @@ def load_model(args):
     if encoder_type != "utonia":
         raise ValueError("PartLLM supports only the Utonia point-cloud encoder")
     utonia_ckpt = getattr(hf_config, "utonia_ckpt_path", None)
-    model.model.load_utonia_weights(ckpt_path=utonia_ckpt)
+    if fast_checkpoint:
+        from partllm_jtorch_loading import load_finetuned_utonia
 
-    utonia_state = _load_utonia_finetuned_state(args.model_path)
+        utonia_state = _load_utonia_finetuned_state(args.model_path)
+        load_finetuned_utonia(model.model, utonia_ckpt, utonia_state)
+    else:
+        model.model.load_utonia_weights(ckpt_path=utonia_ckpt)
+        utonia_state = _load_utonia_finetuned_state(args.model_path)
     if utonia_state:
         missing, unexpected = model.model.utonia_model.load_state_dict(utonia_state, strict=False)
         print(f"[Info] Utonia fine-tuned weights loaded (missing={len(missing)}, unexpected={len(unexpected)})")
 
     
+    return model, processor, tokenizer, hf_config, encoder_type
+
+
+def load_model(args):
+    """Load the model, processor, and tokenizer."""
+    from partllm_jtorch_loading import checkpoint_cpu_load
+
+    with checkpoint_cpu_load(args.model_path) as fast_checkpoint:
+        model, processor, tokenizer, hf_config, encoder_type = _load_model_on_host(args, fast_checkpoint)
+
     model.to(torch.bfloat16).to("cuda")
     model.eval()
 
@@ -1622,8 +1636,17 @@ def prepare_inputs(row, dataset, processor, model, encoder_type, override_prompt
 
 
 
-@torch.no_grad()
 def run_inference(model, inputs, utonia_point_dict, processor, args):
+    if utonia_point_dict is not None and os.environ.get("PARTLLM_DETERMINISTIC_FPS_CACHE") == "1":
+        from verl.models.transformers.qwen3_vl import deterministic_fps_request
+
+        with deterministic_fps_request(utonia_point_dict):
+            return _run_inference(model, inputs, utonia_point_dict, processor, args)
+    return _run_inference(model, inputs, utonia_point_dict, processor, args)
+
+
+@torch.no_grad()
+def _run_inference(model, inputs, utonia_point_dict, processor, args):
     """Generate text and jointly decode all part and background masks."""
     
     
