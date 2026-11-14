@@ -3,7 +3,7 @@
 [Zhe Zhu](https://czvvd.github.io/homepage/),
 [Yiheng Zhang](https://graphic-kiliani.github.io/homepage/),
 Peng Li,
-Zixing Zhao,
+[Zixing Zhao](https://github.com/Zazexy/),
 [Honghua Chen](https://chenhonghua.github.io/clay/),
 Yaqing Zhang,
 Le Wan,
