@@ -1358,8 +1358,32 @@ def build_open_prompt_specs(args, open_rows, fallback_row):
 
 
 
-def load_model(args):
-    """Load the model, processor, and tokenizer."""
+def _load_utonia_finetuned_state(model_path):
+    from safetensors import safe_open
+
+    index_path = os.path.join(model_path, "model.safetensors.index.json")
+    single_path = os.path.join(model_path, "model.safetensors")
+    if os.path.exists(index_path):
+        with open(index_path) as file:
+            weight_map = json.load(file)["weight_map"]
+        shard_paths = {os.path.join(model_path, shard) for key, shard in weight_map.items()
+                       if "utonia_model" in key}
+    elif os.path.exists(single_path):
+        shard_paths = [single_path]
+    else:
+        print("[Warning] No safetensors checkpoint found, using pretrained Utonia weights")
+        return {}
+
+    utonia_state = {}
+    for shard_path in shard_paths:
+        with safe_open(shard_path, framework="pt", device="cpu") as shard:
+            for key in shard.keys():
+                if "utonia_model" in key:
+                    utonia_state[key.replace("model.utonia_model.", "")] = shard.get_tensor(key)
+    return utonia_state
+
+
+def _load_model_on_host(args, fast_checkpoint):
     print("Loading model...")
 
     
@@ -1369,7 +1393,12 @@ def load_model(args):
     hf_config = AutoConfig.from_pretrained(args.config_path, trust_remote_code=True, local_files_only=True)
     auto_class = get_hf_auto_model_class(hf_config=hf_config)
 
-    model = auto_class.from_pretrained(
+    load_pretrained = auto_class.from_pretrained
+    if os.environ.get("PARTLLM_JTORCH_DEFER_LINEAR_INIT") == "1" and hasattr(torch, "_torch_compat_install_context"):
+        from functools import partial
+        from jittor.compat.torch.checkpoint_linear import load_with_deferred_linear_initialization
+        load_pretrained = partial(load_with_deferred_linear_initialization, load_pretrained)
+    model = load_pretrained(
         pretrained_model_name_or_path=args.model_path,
         dtype=torch.bfloat16,
         config=hf_config,
@@ -1390,36 +1419,29 @@ def load_model(args):
     if encoder_type != "utonia":
         raise ValueError("PartLLM supports only the Utonia point-cloud encoder")
     utonia_ckpt = getattr(hf_config, "utonia_ckpt_path", None)
-    model.model.load_utonia_weights(ckpt_path=utonia_ckpt)
+    if fast_checkpoint:
+        from partllm_jtorch_loading import load_finetuned_utonia
 
-    from safetensors.torch import load_file
-    import json as _json
-    utonia_state = {}
-    index_path = os.path.join(args.model_path, "model.safetensors.index.json")
-    single_path = os.path.join(args.model_path, "model.safetensors")
-    if os.path.exists(index_path):
-        with open(index_path) as f:
-            index = _json.load(f)
-        utonia_shards = {
-            shard for key, shard in index["weight_map"].items() if "utonia_model" in key
-        }
-        for shard in utonia_shards:
-            shard_state = load_file(os.path.join(args.model_path, shard))
-            for key, value in shard_state.items():
-                if "utonia_model" in key:
-                    utonia_state[key.replace("model.utonia_model.", "")] = value
-    elif os.path.exists(single_path):
-        shard_state = load_file(single_path)
-        for key, value in shard_state.items():
-            if "utonia_model" in key:
-                utonia_state[key.replace("model.utonia_model.", "")] = value
+        utonia_state = _load_utonia_finetuned_state(args.model_path)
+        load_finetuned_utonia(model.model, utonia_ckpt, utonia_state)
     else:
-        print("[Warning] No safetensors checkpoint found, using pretrained Utonia weights")
+        model.model.load_utonia_weights(ckpt_path=utonia_ckpt)
+        utonia_state = _load_utonia_finetuned_state(args.model_path)
     if utonia_state:
         missing, unexpected = model.model.utonia_model.load_state_dict(utonia_state, strict=False)
         print(f"[Info] Utonia fine-tuned weights loaded (missing={len(missing)}, unexpected={len(unexpected)})")
 
     
+    return model, processor, tokenizer, hf_config, encoder_type
+
+
+def load_model(args):
+    """Load the model, processor, and tokenizer."""
+    from partllm_jtorch_loading import checkpoint_cpu_load
+
+    with checkpoint_cpu_load(args.model_path) as fast_checkpoint:
+        model, processor, tokenizer, hf_config, encoder_type = _load_model_on_host(args, fast_checkpoint)
+
     model.to(torch.bfloat16).to("cuda")
     model.eval()
 
@@ -1614,8 +1636,17 @@ def prepare_inputs(row, dataset, processor, model, encoder_type, override_prompt
 
 
 
-@torch.no_grad()
 def run_inference(model, inputs, utonia_point_dict, processor, args):
+    if utonia_point_dict is not None and os.environ.get("PARTLLM_DETERMINISTIC_FPS_CACHE") == "1":
+        from verl.models.transformers.qwen3_vl import deterministic_fps_request
+
+        with deterministic_fps_request(utonia_point_dict):
+            return _run_inference(model, inputs, utonia_point_dict, processor, args)
+    return _run_inference(model, inputs, utonia_point_dict, processor, args)
+
+
+@torch.no_grad()
+def _run_inference(model, inputs, utonia_point_dict, processor, args):
     """Generate text and jointly decode all part and background masks."""
     
     

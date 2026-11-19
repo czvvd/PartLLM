@@ -50,6 +50,13 @@ cd "$ROOT"
 
 VLLM_PYTHON=${VLLM_PYTHON:-$ROOT/.venv-vllm/bin/python}
 VLLM_BACKEND=${USE_VLLM:-auto}
+if [[ "${PARTLLM_USE_JTORCH:-0}" == "1" ]]; then
+  if [[ "$VLLM_BACKEND" == "1" ]]; then
+    echo "PARTLLM_USE_JTORCH=1 requires USE_VLLM=0 or auto." >&2
+    exit 2
+  fi
+  VLLM_BACKEND=0
+fi
 if [[ "$VLLM_BACKEND" == "auto" ]]; then
   if [[ -x "$VLLM_PYTHON" ]]; then
     VLLM_BACKEND=1
@@ -101,7 +108,14 @@ if [[ "$VLLM_BACKEND" != "0" ]]; then
   exit 2
 fi
 
-exec python "$ENTRY" \
+RUN=(python "$ENTRY")
+if [[ "${PARTLLM_USE_JTORCH:-0}" == "1" ]]; then
+  export JITTOR_TORCH_SHIM=1
+  export PYTHONPATH="$ROOT/compat/jtorch${PYTHONPATH:+:$PYTHONPATH}"
+  RUN=(python "$ROOT/compat/jtorch/run_partllm.py" "$ENTRY")
+fi
+
+exec "${RUN[@]}" \
   --config /dev/null \
   --model_path "$MODEL_PATH" \
   --config_path "$CONFIG_PATH" \

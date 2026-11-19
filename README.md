@@ -76,6 +76,8 @@ bash scripts/train.sh
 
 We provide a Jittor implementation in the [jittor branch](https://github.com/czvvd/PartLLM/tree/jittor).
 
+The PyTorch entry points on this branch also have an opt-in [JTorch inference adapter](docs/jtorch.md).
+
 ## Acknowledgement
 
 Our code is built upon [Qwen3-VL](https://github.com/QwenLM/Qwen3-VL), [Transformers](https://github.com/huggingface/transformers), [Pointcept](https://github.com/Pointcept/Pointcept), and [verl](https://github.com/volcengine/verl). We thank the authors for their excellent work.
